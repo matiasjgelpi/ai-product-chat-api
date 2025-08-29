@@ -46,12 +46,33 @@ export class GeminiService {
     }
   }
 
-  async interpret(
-    message: string,
-  ): Promise<{ action: string; field?: string; value?: string }> {
+  async interpret(message: string): Promise<{
+    action: string;
+    field?: string;
+    value?: string;
+    filters?: Record<string, any>;
+  }> {
     const prompt = `
 Eres un traductor de texto a JSON. No eres un asistente.
-Tienes una tabla de Excel con columnas: id, TIPO_PRENDA, PRECIO_50_U, TIPO_PRENDA, TALLA, COLOR, CANTIDAD_DISPONIBLE, PRECIO_100_U, PRECIO_200_U, DISPONIBLE, CATEGORÍA, DESCRIPCIÓN.
+Tenuna tabla de productos en mi base de datos con la siguiente estructura:
+{
+  "fields": {
+    "id": { "type": "bigint", "javascriptType": "number" },
+    "type": { "type": "text", "javascriptType": "string" },
+    "size": { "type": "text", "javascriptType": "string" },
+    "color": { "type": "text", "javascriptType": "string" },
+    "stock": { "type": "bigint", "javascriptType": "number" },
+    "price": { "type": "bigint", "javascriptType": "number" },
+    "price_100": { "type": "bigint", "javascriptType": "number" },
+    "price_200": { "type": "bigint", "javascriptType": "number" },
+    "category": { "type": "text", "javascriptType": "string" },
+    "description": { "type": "text", "javascriptType": "string" },
+    "available": { "type": "boolean", "javascriptType": "boolean" }
+  }
+}
+
+Interpreta si los nombre de los productos deberían llevar tilde o no ya que las búsquedas serán generalmente en español.
+Si preguntan por ejemplo por el pantalón sin tiede agregalo al value.
 		
 El usuario puede preguntar cosas como:
 - "¿Cuánto cuesta el Producto B?"
@@ -65,13 +86,21 @@ El usuario puede preguntar cosas como:
 - "¿Qué productos hay disponibles?"
 - "Muestrame el detalle de producto C"
 - "Agrega el Producto A al carrito"
+- "Hola"
+- "Productos rojos en talla M"
+- "Camisetas disponibles en color azul"
+- "Chaquetas talla L"
+
+
 
 Tu única tarea es devolver un JSON con esta forma exacta:
 
 {
-  "action": "buscar_precio" | "buscar_producto_detalle" | "otro | mostrar_productos",
+  "action": "buscar_precio" | "buscar_producto_detalle" | "otro | mostrar_productos | saludo",
   "field": string | null,
   "value": string | null
+    "filters": { "campo": "valor" }
+  
 }
 
 No escribas texto adicional, no expliques nada, no agregues comillas triples ni Markdown.
