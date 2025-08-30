@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { SupabaseService } from '../../supabase/supabase/supabase.service';
+import { SupabaseService } from '../supabase/supabase/supabase.service';
 
 @Injectable()
 export class ProductsService {
@@ -86,11 +86,12 @@ export class ProductsService {
     const { data, error } = await this.supabaseService
       .getSupabaseClient()
       .from('products')
-      .select('*');
+      .select('*')
+      .order('name', { ascending: true });
 
+    if (error) throw error;
     return data;
   }
-
   async findByFilters(filters: Record<string, any>) {
     let query = this.supabaseService
       .getSupabaseClient()
@@ -102,6 +103,48 @@ export class ProductsService {
     }
 
     const { data, error } = await query;
+
+    if (error) throw error;
+    return data;
+  }
+
+  async searchByText(searchQuery: string) {
+    const { data, error } = await this.supabaseService
+      .getSupabaseClient()
+      .from('products')
+      .select('*')
+      .or(`name.ilike.%${searchQuery}%,description.ilike.%${searchQuery}%`)
+      .order('name', { ascending: true });
+
+    if (error) throw error;
+    return data;
+  }
+
+  async findById(id: number) {
+    const { data, error } = await this.supabaseService
+      .getSupabaseClient()
+      .from('products')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (error) {
+      if (error.code === 'PGRST116') {
+        // No rows found
+        return null;
+      }
+      throw error;
+    }
+
+    return data;
+  }
+
+  async findByIds(ids: number[]) {
+    const { data, error } = await this.supabaseService
+      .getSupabaseClient()
+      .from('products')
+      .select('*')
+      .in('id', ids);
 
     if (error) throw error;
     return data;

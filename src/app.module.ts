@@ -1,14 +1,13 @@
 import { Module } from '@nestjs/common';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
-import { AiService } from './ai/services/ai.service';
 import { GeminiService } from './ai/services/gemini.service';
-import { ExcelService } from './ai/services/excel.service';
 import { ConfigModule } from '@nestjs/config';
 import * as Joi from 'joi';
 import { SupabaseService } from './supabase/supabase/supabase.service';
-import { ProductsModule } from './products/products/products.module';
-import { ProductsController } from './products/products/products.controller';
+import { ProductsModule } from './products/products.module';
+import { CartsModule } from './carts/carts.module';
+import { ChatModule } from './chat/chat.module';
 
 @Module({
   imports: [
@@ -23,14 +22,10 @@ import { ProductsController } from './products/products/products.controller';
       }),
     }),
     ProductsModule,
+    CartsModule,
+    ChatModule,
   ],
   controllers: [AppController],
-  providers: [
-    AppService,
-    AiService,
-    GeminiService,
-    ExcelService,
-    SupabaseService,
-  ],
+  providers: [AppService, GeminiService, SupabaseService],
 })
 export class AppModule {}
