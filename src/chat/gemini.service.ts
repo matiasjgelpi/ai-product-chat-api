@@ -8,124 +8,10 @@ export class GeminiService {
   private model: any;
 
   constructor(private configService: ConfigService) {
-    // Obtener API key de environment variables
     const apiKey = this.configService.get('GEMINI_API_KEY');
 
-    if (!apiKey) {
-      throw new Error(
-        'GEMINI_API_KEY no está configurada en las variables de entorno',
-      );
-    }
-
     this.genAI = new GoogleGenerativeAI(apiKey);
-    this.model = this.genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
-  }
-
-  async generateContent(prompt: string): Promise<string> {
-    try {
-      const result = await this.model.generateContent(prompt);
-      const response = await result.response;
-      return response.text();
-    } catch (error) {
-      throw new HttpException(
-        `Error en Gemini: ${error.message}`,
-        HttpStatus.INTERNAL_SERVER_ERROR,
-      );
-    }
-  }
-
-  async generateContentStream(prompt: string) {
-    try {
-      const result = await this.model.generateContentStream(prompt);
-      return result.stream;
-    } catch (error) {
-      throw new HttpException(
-        `Error en Gemini: ${error.message}`,
-        HttpStatus.INTERNAL_SERVER_ERROR,
-      );
-    }
-  }
-
-  async interpret(message: string): Promise<{
-    action: string;
-    field?: string;
-    value?: string;
-    filters?: Record<string, any>;
-  }> {
-    const prompt = `
-Eres un traductor de texto a JSON. No eres un asistente.
-Tenuna tabla de productos en mi base de datos con la siguiente estructura:
-{
-  "fields": {
-    "id": { "type": "bigint", "javascriptType": "number" },
-    "type": { "type": "text", "javascriptType": "string" },
-    "size": { "type": "text", "javascriptType": "string" },
-    "color": { "type": "text", "javascriptType": "string" },
-    "stock": { "type": "bigint", "javascriptType": "number" },
-    "price": { "type": "bigint", "javascriptType": "number" },
-    "price_100": { "type": "bigint", "javascriptType": "number" },
-    "price_200": { "type": "bigint", "javascriptType": "number" },
-    "category": { "type": "text", "javascriptType": "string" },
-    "description": { "type": "text", "javascriptType": "string" },
-    "available": { "type": "boolean", "javascriptType": "boolean" }
-  }
-}
-
-Interpreta si los nombre de los productos deberían llevar tilde o no ya que las búsquedas serán generalmente en español.
-Si preguntan por ejemplo por el pantalón sin tiede agregalo al value.
-		
-El usuario puede preguntar cosas como:
-- "¿Cuánto cuesta el Producto B?"
-- "Dame el precio del Producto C"
-- "Busca el Producto A"
-- "Muéstrame todos los productos"
-- "Muéstrame los productos de tipo A"
-- "¿Qué productos hay en color rojo?"
-- "¿Qué productos hay en talla M?"
-- "¿Qué productos hay en la categoría Camisetas?"
-- "¿Qué productos hay disponibles?"
-- "Muestrame el detalle de producto C"
-- "Agrega el Producto A al carrito"
-- "Hola"
-- "Productos rojos en talla M"
-- "Camisetas disponibles en color azul"
-- "Chaquetas talla L"
-
-
-
-Tu única tarea es devolver un JSON con esta forma exacta:
-
-{
-  "action": "buscar_precio" | "buscar_producto_detalle" | "otro | mostrar_productos | saludo",
-  "field": string | null,
-  "value": string | null
-    "filters": { "campo": "valor" }
-  
-}
-
-No escribas texto adicional, no expliques nada, no agregues comillas triples ni Markdown.
-Devuelve **solo JSON válido**.
-
-Pregunta del usuario: "${message}"
-    `;
-
-    const result = await this.model.generateContent(prompt);
-
-    let text = result.response.text().trim();
-
-    // 🔹 Limpieza para quitar ```json ... ```
-    text = text.replace(/```json|```/g, '').trim();
-
-    try {
-      return JSON.parse(text);
-    } catch {
-      return { action: 'otro' };
-    }
-  }
-
-  async respond(message: string): Promise<string> {
-    const result = await this.model.generateContent(message);
-    return result.response.text();
+    this.model = this.genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
   }
 
   async callWithFunctions(prompt: string, functions: any[]) {
@@ -158,26 +44,97 @@ Pregunta del usuario: "${message}"
 
   async continueWithFunctionResult(originalResp: any, functionResult: any) {
     console.log('Original resp:', originalResp);
+    console.log('Function result:', functionResult);
 
     try {
-      const prompt = `
-ANÁLISIS DE RESULTADOS ESPECÍFICOS:
+      // DETECTAR OPERACIONES DE CARRITO
+      const functionName = originalResp.function_call?.name;
+      const isCartOperation =
+        functionName?.includes('cart') ||
+        functionName?.includes('Carrito') ||
+        functionName?.includes('delete');
 
-El usuario solicitó: "${originalResp.function_call.args?.q || 'productos'}"
-Parámetros de búsqueda utilizados: ${JSON.stringify(originalResp.function_call.args, null, 2)}
+      // CASO ESPECIAL: ELIMINACIÓN DE CARRITO
+      if (
+        functionName === 'delete_cart' ||
+        (functionResult?.message &&
+          functionResult.message.includes('eliminado'))
+      ) {
+        const prompt = `
+OPERACIÓNDE CARRITO - ELIMINACIÓN:
 
-RESULTADOS ENCONTRADOS (${functionResult.length} productos):
+El usuario ha solicitado eliminar su carrito de compras.
+
+RESULTADO DE LA OPERACIÓN:
+✅ Carrito eliminado exitosamente
+🗑️ Todos los productos fueron removidos
+🔄 Carrito vacío y listo para nuevas compras
+
+INSTRUCCIONES DE RESPUESTA:
+1. Confirma que el carrito fue eliminado correctamente
+2. Usa un tono positivo y reconfortante
+3. Invita al usuario a seguir explorando productos
+4. Mantén la respuesta breve y amigable
+5. Usa emojis apropiados (✅🗑️🔄)
+
+Responde ahora:
+`;
+        const result = await this.model.generateContent(prompt);
+        return result.response.text();
+      }
+
+      // CASO ESPECIAL: OPERACIONES GENERALES DE CARRITO
+      if (
+        isCartOperation &&
+        functionResult &&
+        typeof functionResult === 'object'
+      ) {
+        const prompt = `
+OPERACIÓNDE CARRITO - RESULTADO:
+
+El usuario realizó una operación en el carrito de compras.
+
+RESULTADO DE LA OPERACIÓN:
 ${JSON.stringify(functionResult, null, 2)}
 
-INSTRUCCIONES ESPECÍFICAS:
-1. Analiza EXCLUSIVAMENTE los resultados filtrados mostrados arriba
-2. No hagas referencia a productos que no estén en la lista de resultados
-3. Proporciona detalles específicos de los productos encontrados
-4. Si hay pocos resultados, sugiere alternativas o ajustes en los filtros
-5. Si no hay resultados, sugiere cambiar los criterios de búsqueda
-6. Incluye precios, tallas, colores y disponibilidad específicos
+INSTRUCCIONES DE RESPUESTA:
+1. Analiza el resultado de la operación del carrito
+2. Si fue exitosa, confirma la acción realizada
+3. Si hubo error, explica amablemente lo ocurrido
+4. Para carritos vacíos, sugiere explorar productos
+5. Para carritos con items, muestra resumen breve
+6. Usa tono amigable y profesional
+7. Incluye emojis apropiados
 
-Responde de manera natural y útil al usuario.
+Responde ahora:
+`;
+        const result = await this.model.generateContent(prompt);
+        return result.response.text();
+      }
+
+      // CASO NORMAL: BÚSQUEDA DE PRODUCTOS (tu código original)
+      const prompt = `
+ANÁLISIS Y RESPUESTA DE CATÁLOGO:
+
+📌 Consulta del usuario: "${originalResp.function_call.args?.q || 'productos'}"
+📌 Parámetros de búsqueda: ${JSON.stringify(originalResp.function_call.args, null, 2)}
+
+📦 RESULTADOS ENCONTRADOS (${functionResult.length} productos):
+${JSON.stringify(functionResult, null, 2)}
+
+INSTRUCCIONES DE RESPUESTA:
+1. Responde SIEMPRE en tono claro, conciso y natural
+2. Muestra SOLO los primeros 5 productos encontrados
+3. Para cada producto muestra: nombre, precio, talla, color, disponibilidad
+4. Si no hay resultados, sugiere modificar filtros
+5. Si hay pocos resultados, sugiere opciones similares
+6. **Caso especial: CARRITO**
+  - Si hay productos, lista como máximo 5
+  - Muestra cantidad total, detalle por producto y total general
+7. Nunca inventes datos
+8. Presenta la respuesta en formato fácil de leer
+
+Responde ahora siguiendo estas reglas.
 `;
 
       const result = await this.model.generateContent(prompt);

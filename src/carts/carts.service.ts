@@ -9,7 +9,11 @@ import { SupabaseService } from '../supabase/supabase/supabase.service';
 export class CartsService {
   constructor(private supabaseService: SupabaseService) {}
 
-  async createCart(items: { product_id: number; qty: number }[]) {
+  async createCart(
+    session_id: string,
+    items: { product_id: number; qty: number }[],
+  ) {
+    console.log('Items:', items);
     if (!items || items.length === 0) {
       throw new BadRequestException('Cart must contain at least one item');
     }
@@ -19,6 +23,7 @@ export class CartsService {
       .getSupabaseClient()
       .from('carts')
       .insert({
+        session_id,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       })
@@ -44,13 +49,12 @@ export class CartsService {
           .select(
             `
           *,
-          product:products(id, name, description, price, stock)
+          product:products(id, type, price)
         `,
           )
           .single();
 
       if (itemError) {
-        // Si falla la inserción de algún item, limpiar el carrito creado
         await this.deleteCart(cart.id);
         throw new Error(`Failed to add item to cart: ${itemError.message}`);
       }
@@ -98,8 +102,44 @@ export class CartsService {
     return { message: 'Cart deleted successfully', cartId };
   }
 
+  async deleteCartBySessionId(sessionId: string) {
+    // Verificar que existe
+    const { data: cart } = await this.supabaseService
+      .getSupabaseClient()
+      .from('carts')
+      .select('session_id')
+      .eq('session_id', sessionId)
+      .single();
+
+    console.log('cart', cart);
+
+    if (!cart) {
+      return { message: 'Carrito eliminado', sessionId };
+    }
+
+    // Eliminar items primero (por la foreign key)
+    await this.supabaseService
+      .getSupabaseClient()
+      .from('cart_items')
+      .delete()
+      .eq('session_id', sessionId);
+
+    // Eliminar carrito
+    const { error: deleteError } = await this.supabaseService
+      .getSupabaseClient()
+      .from('carts')
+      .delete()
+      .eq('session_id', sessionId);
+
+    if (deleteError) {
+      return { message: 'Hubo un error eliminando el carrito', sessionId };
+    }
+
+    return { message: 'Carrito eliminado', sessionId };
+  }
+
   async updateCart(
-    cartId: number,
+    sessionId: string,
     items: { product_id: number; qty: number }[],
   ) {
     if (!items || items.length === 0) {
@@ -111,11 +151,11 @@ export class CartsService {
       .getSupabaseClient()
       .from('carts')
       .select()
-      .eq('id', cartId)
+      .eq('session_id', sessionId)
       .single();
 
     if (!cart) {
-      throw new NotFoundException(`Cart ${cartId} not found`);
+      throw new NotFoundException(`Cart ${sessionId} not found`);
     }
 
     // Validar productos antes de actualizar
@@ -129,7 +169,7 @@ export class CartsService {
       .getSupabaseClient()
       .from('carts')
       .update({ updated_at: new Date().toISOString() })
-      .eq('id', cartId);
+      .eq('session_id', sessionId);
 
     // Procesar cada item
     const updatedItems = [];
@@ -140,32 +180,31 @@ export class CartsService {
           .getSupabaseClient()
           .from('cart_items')
           .delete()
-          .eq('cart_id', cartId)
+          .eq('cart_id', cart?.id)
           .eq('product_id', item.product_id);
 
         if (deleteError) {
           console.error('Delete error:', deleteError);
         }
       } else {
-        // Upsert (update si existe, insert si no)
         const { data: upsertedItem, error: upsertError } =
           await this.supabaseService
             .getSupabaseClient()
             .from('cart_items')
             .upsert(
               {
-                cart_id: cartId,
+                cart_id: cart?.id,
                 product_id: item.product_id,
                 qty: item.qty,
               },
               {
-                onConflict: 'cart_id,product_id', // Corrección: ambos campos para el conflicto
+                onConflict: 'cart_id,product_id',
               },
             )
             .select(
               `
             *,
-            product:products(id, name, description, price, stock)
+            product:products(id, type, description, price, stock)
           `,
             )
             .single();
@@ -173,7 +212,7 @@ export class CartsService {
         if (upsertError) {
           console.error('Upsert error:', upsertError);
           console.error('Data:', {
-            cart_id: cartId,
+            cart_id: cart?.id,
             product_id: item.product_id,
             qty: item.qty,
           });
@@ -187,21 +226,36 @@ export class CartsService {
     }
 
     // Obtener el carrito actualizado completo
-    return await this.findOne(cartId);
+    return await this.findOne(cart?.id);
   }
 
   async findOne(cartId: number) {
+    // const { data: cart, error: cartError } = await this.supabaseService
+    //   .getSupabaseClient()
+    //   .from('carts')
+    //   .select(
+    //     `
+    //     *,
+    //     items:cart_items(
+    //       *,
+    //       product:products(id, type, description, price, stock)
+    //     )
+    //   `,
+    //   )
+    //   .eq('id', cartId)
+    //   .single();
+
     const { data: cart, error: cartError } = await this.supabaseService
       .getSupabaseClient()
       .from('carts')
       .select(
         `
-        *,
-        items:cart_items(
-          *,
-          product:products(id, name, description, price, stock)
-        )
-      `,
+    *,
+    items:cart_items(
+      *,
+      product:products(id, type, description, price, stock)
+    )
+  `,
       )
       .eq('id', cartId)
       .single();
@@ -210,16 +264,51 @@ export class CartsService {
       throw new NotFoundException(`Cart ${cartId} not found`);
     }
 
+    // Normalizar items: convertir objeto a array si es necesario
+    let itemsArray = [];
+    if (cart.items) {
+      if (Array.isArray(cart.items)) {
+        itemsArray = cart.items;
+      } else {
+        // Si es un objeto individual, convertirlo a array
+        itemsArray = [cart.items];
+      }
+    }
+
     // Calcular total del carrito
-    const total =
-      cart.items?.reduce((sum, item) => {
-        return sum + item.product.price * item.qty;
-      }, 0) || 0;
+    const total = itemsArray.reduce((sum, item) => {
+      return sum + (item.product?.price || 0) * item.qty;
+    }, 0);
 
     return {
       ...cart,
+      items: itemsArray, // Devolver como array siempre
       total,
-      itemCount: cart.items?.length || 0,
+      itemCount: itemsArray.length,
     };
+  }
+
+  async getCart(sessionId: string) {
+    const { data: cart, error } = await this.supabaseService
+      .getSupabaseClient()
+      .from('carts')
+      .select(
+        `
+      *,
+      cart_items(
+        *,
+        product:products(*)
+      )
+    `,
+      )
+      .eq('session_id', sessionId)
+      .single();
+
+    if (error) {
+      console.error('Error fetching cart:', error);
+      return { reply: 'No hay carrito para este id' };
+    }
+
+    return cart;
   }
 }

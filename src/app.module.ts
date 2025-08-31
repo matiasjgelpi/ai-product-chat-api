@@ -1,10 +1,9 @@
 import { Module } from '@nestjs/common';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
-import { GeminiService } from './ai/services/gemini.service';
 import { ConfigModule } from '@nestjs/config';
 import * as Joi from 'joi';
-import { SupabaseService } from './supabase/supabase/supabase.service';
+
 import { ProductsModule } from './products/products.module';
 import { CartsModule } from './carts/carts.module';
 import { ChatModule } from './chat/chat.module';
@@ -12,7 +11,7 @@ import { ChatModule } from './chat/chat.module';
 @Module({
   imports: [
     ConfigModule.forRoot({
-      isGlobal: true, // Disponible en toda la app
+      isGlobal: true,
       validationSchema: Joi.object({
         OPENAI_API_KEY: Joi.string().required(),
         GEMINI_API_KEY: Joi.string().required(),
@@ -26,6 +25,6 @@ import { ChatModule } from './chat/chat.module';
     ChatModule,
   ],
   controllers: [AppController],
-  providers: [AppService, GeminiService, SupabaseService],
+  providers: [AppService],
 })
 export class AppModule {}

@@ -13,96 +13,6 @@ export class ChatController {
     private cartsService: CartsService,
   ) {}
 
-  // @Post()
-  // async ask(@Body() body: { message: string }) {
-  //   // 1. Interpretar intención
-  //   const intent = await this.geminiService.interpret(body.message);
-
-  //   console.log('Intento:', intent);
-
-  //   if (intent.action === 'buscar_precio' && intent.field && intent.value) {
-  //     const result = await this.productsService.findBy('type', intent.value);
-  //     console.log(result);
-  //     if (result.length > 0) {
-  //       return {
-  //         reply: `El precio de ${intent.value} tiene los siguientes precios segun la cantidad a adquirir
-  //         por 50 unidades: ${result[0].price}, por 100 unidades: ${result[0].price_100} y por 200 unidades: ${result[0].PRECIO_200_U}`,
-  //       };
-  //     }
-  //     return { reply: `No encontré el producto ${intent.value}` };
-  //   }
-
-  //   if (intent.action === 'saludo') {
-  //     return {
-  //       reply:
-  //         '¡Hola! ¿Cómo te puedo ayudar? ¿quieres que te diga algo sobre los productos que tenemos?',
-  //     };
-  //   }
-
-  //   if (intent.action === 'buscar_producto_detalle' && intent.filters) {
-  //     const results = await this.productsService.findByFilters(intent.filters);
-
-  //     if (results.length > 0) {
-  //       const p = results;
-  //       console.log(p);
-  //       return {
-  //         reply: `Encontré el producto con estas características:
-  //     Tipo: }
-
-  //     `,
-  //       };
-  //     }
-
-  //     return { reply: `No encontré un producto con esos criterios.` };
-  //   }
-
-  //   if (intent.action === 'mostrar_productos') {
-  //     const result = await this.productsService.getAll();
-
-  //     if (result.length > 0) {
-  //       // agrupamos por tipo
-  //       const grouped = result.reduce(
-  //         (acc, item) => {
-  //           if (!acc[item.type]) {
-  //             acc[item.type] = [];
-  //           }
-  //           acc[item.type].push(item);
-  //           return acc;
-  //         },
-  //         {} as Record<string, any[]>,
-  //       );
-
-  //       // armamos el mensaje para el chat
-  //       const mensaje = Object.entries(grouped)
-  //         .map(([tipo, productos]) => {
-  //           const items = (productos as any[])
-  //             .map(
-  //               (p) => `
-  //  - ${p.color} (Talle ${p.size})
-  //    • Precio mínimo: ${p.price}
-  //    • Precio 100 unidades: ${p.price_100}
-  //    • Precio 200 unidades: ${p.price_200}`,
-  //             )
-  //             .join('\n');
-
-  //           return `👉 *${tipo}*\n${items}`;
-  //         })
-  //         .join('\n\n');
-
-  //       // acá ya tenés el texto armado para responder en el chat
-  //       return mensaje;
-  //     }
-  //   }
-
-  //   if (intent.action === 'otro') {
-  //     const aiReply = await this.geminiService.respond(
-  //       'No pude interpretar bien tu pregunta, pero te respondo esto: ' +
-  //         body.message,
-  //     );
-  //     return { reply: aiReply };
-  //   }
-  // }
-
   @Post()
   async ask(@Body() body: { message: string }) {
     const functions = [
@@ -162,13 +72,82 @@ export class ChatController {
               items: {
                 type: 'object',
                 properties: {
-                  product_id: { type: 'integer' },
-                  qty: { type: 'integer' },
+                  type: {
+                    type: 'string',
+                    description: 'Tipo de producto (camiseta, pantalón, etc.)',
+                  },
+                  size: {
+                    type: 'string',
+                    description: 'Talla: S, M, L, XL, etc.',
+                  },
+                  color: {
+                    type: 'string',
+                    description: 'Color: rojo, azul, negro, etc.',
+                  },
+                  category: {
+                    type: 'string',
+                    description: 'Categoría: casual, formal, deportivo, etc.',
+                  },
+                  qty: { type: 'integer', description: 'Cantidad solicitada' },
                 },
-                required: ['product_id', 'qty'],
+                required: ['type', 'qty'],
               },
             },
           },
+          required: ['items'],
+        },
+      },
+      // {
+      //   name: 'update_cart',
+      //   description:
+      //     'Modifica un carrito existente (agrega, cambia o quita productos)',
+      //   parameters: {
+      //     type: 'object',
+      //     properties: {
+      //       items: {
+      //         type: 'array',
+      //         items: {
+      //           type: 'object',
+      //           properties: {
+      //             type: {
+      //               type: 'string',
+      //               description: 'Tipo de producto (camiseta, pantalón, etc.)',
+      //             },
+      //             size: {
+      //               type: 'string',
+      //               description: 'Talla: S, M, L, XL, etc.',
+      //             },
+      //             color: {
+      //               type: 'string',
+      //               description: 'Color: rojo, azul, negro, etc.',
+      //             },
+      //             category: {
+      //               type: 'string',
+      //               description: 'Categoría: casual, formal, deportivo, etc.',
+      //             },
+      //             qty: { type: 'integer', description: 'Cantidad solicitada' },
+      //           },
+      //           required: ['type', 'qty'],
+      //         },
+      //       },
+      //     },
+      //     required: ['items'],
+      //   },
+      // },
+      {
+        name: 'get_cart',
+        description:
+          'Obtiene la información completa del carrito de un usuario',
+        parameters: {
+          type: 'object',
+        },
+      },
+      {
+        name: 'delete_cart',
+        description: 'Elimina el carrito actual del usuario (vaciar carrito)',
+        parameters: {
+          type: 'object',
+          properties: {},
         },
       },
     ];
@@ -184,8 +163,7 @@ export class ChatController {
       const { name, args } = aiResp.function_call;
 
       if (name === 'get_products') {
-        // args puede contener: q, type, size, color, category, minPrice, maxPrice, etc.
-        const products = await this.productsService.getAll(args);
+        const products = await this.productsService.getProducts(args);
         const final = await this.geminiService.continueWithFunctionResult(
           aiResp,
           products,
@@ -194,7 +172,56 @@ export class ChatController {
       }
 
       if (name === 'create_cart') {
-        const cart = await this.cartsService.createCart(args.items);
+        console.log('Items:', args.items);
+
+        const resolvedItems = [];
+        for (const item of args.items) {
+          const found = await this.productsService.getProducts({
+            type: item.type,
+            size: item.size,
+            color: item.color,
+          });
+
+          if (found.length === 0) {
+            return {
+              reply: `No encontré un producto que coincida con: ${item.type} ${item.color || ''} ${item.size || ''}`,
+            };
+          }
+
+          const product = found[0];
+          resolvedItems.push({ product_id: product.id, qty: item.qty });
+        }
+
+        // 👇 primero revisa si ya existe carrito
+        const existingCart = await this.cartsService.getCart('3194014');
+
+        console.log('Existente cart:', existingCart);
+        let cart;
+        if (existingCart && existingCart.cart_items) {
+          console.log('Existente cart:', existingCart);
+          cart = await this.cartsService.updateCart('3194014', resolvedItems);
+        } else {
+          cart = await this.cartsService.createCart('3194014', resolvedItems);
+        }
+
+        const final = await this.geminiService.continueWithFunctionResult(
+          aiResp,
+          cart,
+        );
+        return { reply: final };
+      }
+
+      if (name === 'delete_cart') {
+        await this.cartsService.deleteCartBySessionId('3194014');
+        const final = await this.geminiService.continueWithFunctionResult(
+          aiResp,
+          { success: true },
+        );
+        return { reply: final };
+      }
+
+      if (name === 'get_cart') {
+        const cart = await this.cartsService.getCart('3194014');
         const final = await this.geminiService.continueWithFunctionResult(
           aiResp,
           cart,

@@ -52,7 +52,10 @@ export class CartsController {
   })
   async create(@Body() createCartDto: CreateCartDto) {
     try {
-      const cart = await this.cartService.createCart(createCartDto.items);
+      const cart = await this.cartService.createCart(
+        '31940147',
+        createCartDto.items,
+      );
       return {
         id: cart.id,
         message: 'Cart created',
@@ -130,7 +133,7 @@ export class CartsController {
   })
   async update(@Param('id') id: string, @Body() updateCartDto: UpdateCartDto) {
     try {
-      return await this.cartService.updateCart(Number(id), updateCartDto.items);
+      return await this.cartService.updateCart(id, updateCartDto.items);
     } catch (error) {
       if (error.message.includes('not found')) {
         throw new HttpException(
