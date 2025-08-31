@@ -158,12 +158,6 @@ export class CartsService {
       throw new NotFoundException(`Cart ${sessionId} not found`);
     }
 
-    // Validar productos antes de actualizar
-    // const validItems = items.filter((item) => item.qty > 0);
-    // if (validItems.length > 0) {
-    //   await this.validateProducts(validItems);
-    // }
-
     // Actualizar timestamp del carrito
     await this.supabaseService
       .getSupabaseClient()
@@ -230,21 +224,6 @@ export class CartsService {
   }
 
   async findOne(cartId: number) {
-    // const { data: cart, error: cartError } = await this.supabaseService
-    //   .getSupabaseClient()
-    //   .from('carts')
-    //   .select(
-    //     `
-    //     *,
-    //     items:cart_items(
-    //       *,
-    //       product:products(id, type, description, price, stock)
-    //     )
-    //   `,
-    //   )
-    //   .eq('id', cartId)
-    //   .single();
-
     const { data: cart, error: cartError } = await this.supabaseService
       .getSupabaseClient()
       .from('carts')

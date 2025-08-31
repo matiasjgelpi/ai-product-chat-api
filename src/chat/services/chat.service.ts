@@ -13,7 +13,7 @@ export class ChatService {
     private configService: ConfigService,
   ) {}
 
-  async ask(body: { message: string }) {
+  async ask(body: { message: string }, from = '3194014') {
     const functions = [
       {
         name: 'get_products',
@@ -152,13 +152,13 @@ export class ChatService {
         }
 
         // 👇 primero revisa si ya existe carrito
-        const existingCart = await this.cartsService.getCart('3194014');
+        const existingCart = await this.cartsService.getCart(from);
 
         let cart;
         if (existingCart && existingCart.cart_items) {
-          cart = await this.cartsService.updateCart('3194014', resolvedItems);
+          cart = await this.cartsService.updateCart(from, resolvedItems);
         } else {
-          cart = await this.cartsService.createCart('3194014', resolvedItems);
+          cart = await this.cartsService.createCart(from, resolvedItems);
         }
 
         const final = await this.geminiService.continueWithFunctionResult(
@@ -169,7 +169,7 @@ export class ChatService {
       }
 
       if (name === 'delete_cart') {
-        await this.cartsService.deleteCartBySessionId('3194014');
+        await this.cartsService.deleteCartBySessionId(from);
         const final = await this.geminiService.continueWithFunctionResult(
           aiResp,
           { success: true },
@@ -178,7 +178,7 @@ export class ChatService {
       }
 
       if (name === 'get_cart') {
-        const cart = await this.cartsService.getCart('3194014');
+        const cart = await this.cartsService.getCart(from);
         const final = await this.geminiService.continueWithFunctionResult(
           aiResp,
           cart,

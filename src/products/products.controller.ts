@@ -30,11 +30,6 @@ export class ProductsController {
   @ApiOperation({ summary: 'Get all products with optional filters' })
   @ApiResponse({ status: 200, description: 'Products retrieved successfully' })
   @ApiQuery({
-    name: 'q',
-    required: false,
-    description: 'Search query for name/description',
-  })
-  @ApiQuery({
     name: 'category',
     required: false,
     description: 'Filter by category',

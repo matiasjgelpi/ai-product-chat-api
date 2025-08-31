@@ -1,8 +1,5 @@
 import { Body, Controller, Get, Logger, Post, Req, Res } from '@nestjs/common';
-import { ProductsService } from '../products/products.service';
 import { Request, Response } from 'express';
-import { CartsService } from '../carts/carts.service';
-import { GeminiService } from './services/gemini.service';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { ChatService } from './services/chat.service';
 import { ConfigService } from '@nestjs/config';
@@ -14,9 +11,6 @@ export class ChatController {
   constructor(
     private chatService: ChatService,
     private configService: ConfigService,
-    private geminiService: GeminiService,
-    private productsService: ProductsService,
-    private cartsService: CartsService,
   ) {}
 
   @Post()
@@ -72,38 +66,6 @@ export class ChatController {
     }
   }
 
-  // @Post('webhook')
-  // receiveMessage(@Req() req: Request, @Res() res: Response) {
-  //   try {
-  //     const body = req.body;
-  //     console.log('Mensaje recibido:', JSON.stringify(body, null, 2));
-
-  //     // Verifica que es un mensaje válido de WhatsApp
-  //     if (body.object === 'whatsapp_business_account') {
-  //       const entries = body.entry;
-  //       if (entries && entries.length > 0) {
-  //         entries.forEach((entry) => {
-  //           const changes = entry.changes;
-  //           changes.forEach((change) => {
-  //             if (change.field === 'messages') {
-  //               const message = change.value.messages[0];
-  //               if (message) {
-  //                 this.logger.log(`Mensaje de: ${message.from}`);
-  //                 this.logger.log(`Tipo: ${message.type}`);
-  //                 this.logger.log(`Contenido: ${JSON.stringify(message)}`);
-  //               }
-  //             }
-  //           });
-  //         });
-  //       }
-  //     }
-
-  //     res.status(200).send('EVENT_RECEIVED');
-  //   } catch (error) {
-  //     this.logger.error('Error procesando webhook:', error);
-  //     res.status(500).send('ERROR');
-  //   }
-  // }
   @Post('webhook')
   async receiveMessage(@Req() req: Request, @Res() res: Response) {
     try {
@@ -127,7 +89,10 @@ export class ChatController {
                   this.logger.log(`Texto: ${text}`);
 
                   // 👉 Generar respuesta con tu servicio
-                  const reply = await this.chatService.ask({ message: text });
+                  const reply = await this.chatService.ask(
+                    { message: text },
+                    from,
+                  );
 
                   // 👉 Enviar respuesta a WhatsApp Cloud API
                   await this.sendWhatsAppMessage(from, reply.reply);
@@ -163,8 +128,6 @@ export class ChatController {
         body: templateName,
       },
     };
-
-    console.log('Enviando mensaje:', payload);
 
     const response = await fetch(url, {
       method: 'POST',
