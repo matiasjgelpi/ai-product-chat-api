@@ -13,11 +13,13 @@ import { ChatModule } from './chat/chat.module';
     ConfigModule.forRoot({
       isGlobal: true,
       validationSchema: Joi.object({
-        OPENAI_API_KEY: Joi.string().required(),
         GEMINI_API_KEY: Joi.string().required(),
         PORT: Joi.number().default(3000),
         SUPABASE_URL: Joi.string().required(),
         SUPABASE_KEY: Joi.string().required(),
+        WP_ACCESS_TOKEN: Joi.string().required(),
+        WP_VERIFY_TOKEN: Joi.string().required(),
+        WP_PHONE_NUMBER_ID: Joi.string().required(),
       }),
     }),
     ProductsModule,

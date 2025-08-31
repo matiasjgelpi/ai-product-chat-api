@@ -2,7 +2,7 @@ import { Module } from '@nestjs/common';
 import { ProductsController } from './products.controller';
 import { SupabaseService } from '../supabase/supabase/supabase.service';
 import { ProductsService } from './products.service';
-import { GeminiService } from '../chat/gemini.service';
+import { GeminiService } from '../chat/services/gemini.service';
 
 @Module({
   controllers: [ProductsController],

@@ -58,8 +58,6 @@ export class ProductsController {
     try {
       const { ...filters } = query;
 
-      // Si hay parámetro de búsqueda 'q', usar búsqueda por texto
-
       if (Object.keys(filters).length > 0) {
         const cleanFilters = this.cleanFilters(filters);
         const products = await this.productsService.getProducts(cleanFilters);
